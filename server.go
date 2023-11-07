@@ -11,6 +11,10 @@ import (
 	"strings"
 )
 
+const maxConcurrentRequests = 10
+	//Set up a chanel to cap the maxmimum amount of child proceses to 10
+var requestChannel chan int 
+
 var badRequestResponse = http.Response{
 	Status:     "400 Bad Request",
 	StatusCode: http.StatusBadRequest,
@@ -21,7 +25,7 @@ var badRequestResponse = http.Response{
 
 func worker(conn net.Conn) {
 	handleRequest(conn)
-	conn.Close()
+	defer conn.Close()
 }
 
 // Main request handler for incoming HTTP requests
@@ -154,6 +158,8 @@ func getContentType(path string) (string, error) {
 
 func main() {
 
+	requestChannel = make(chan int, maxConcurrentRequests)
+
 	if len(os.Args) != 2 {
 		//TODO better message
 		fmt.Printf("No port specified, please rerun the server with <port> argument")
@@ -171,19 +177,20 @@ func main() {
 	//Cleanup, close connection if main were to return
 	defer listener.Close()
 
-	maxConcurrentRequests := 10
-	//Set up a chanel to cap the maxmimum amount of child proceses to 10
-	requestChannel := make(chan net.Conn, maxConcurrentRequests)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection:", err)
-			continue
 		}
-		requestChannel <- conn
-		go worker(conn)
-
+		
+		requestChannel <- 1
+		go func (conn net.Conn)  {
+			fmt.Println(len(requestChannel))
+			worker(conn)
+			<- requestChannel
+		}(conn)
+		
 	}
 
 }
