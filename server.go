@@ -17,16 +17,20 @@ func worker(conn net.Conn) {
 
 // Main request handler for incoming HTTP requests
 func handleRequest(conn net.Conn) {
-	// Implement your request handling logic here.
-	// For GET and POST methods, read the request, process it, and send a response.
-	// For other methods, send a "Not Implemented" (501) error response.
-	// Create a bufio.Reader to read the HTTP request
 	reader := bufio.NewReader(conn)
 	req, err := http.ReadRequest(reader)
 
+    //Send error if http request is badly formatted
 	if err != nil {
-		fmt.Println("Error reading request: ", err)
-		return
+		response := http.Response{
+			Status:     "400 Bad Request",
+			StatusCode: http.StatusBadRequest,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+		}
+		response.Write(conn)
+        return
 	}
 
 	switch req.Method {
