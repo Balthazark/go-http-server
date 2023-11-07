@@ -11,10 +11,6 @@ import (
 	"strings"
 )
 
-const maxConcurrentRequests = 10
-	//Set up a chanel to cap the maxmimum amount of child proceses to 10
-var requestChannel chan int 
-
 var badRequestResponse = http.Response{
 	Status:     "400 Bad Request",
 	StatusCode: http.StatusBadRequest,
@@ -23,23 +19,17 @@ var badRequestResponse = http.Response{
 	ProtoMinor: 1,
 }
 
-func worker(conn net.Conn) {
-	handleRequest(conn)
-	defer conn.Close()
-}
-
-// Main request handler for incoming HTTP requests
 func handleRequest(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	req, err := http.ReadRequest(reader)
 
-	//Send error if http request is badly formatted
 	if err != nil {
 		badRequestResponse.Write(conn)
 		return
 	}
 
 	switch req.Method {
+
 	case http.MethodGet:
 		handleServeFile(conn, req.URL.Path)
 	case http.MethodPost:
@@ -68,6 +58,7 @@ func handleServeFile(conn net.Conn, path string) {
 
 	fmt.Println("./content" + "/file" + strings.Replace(path, "/", ".", 1))
 
+	//REVIEW should we support getting different files? is not this redundant otherwise?
 	if err != nil {
 		response := http.Response{
 			Status:     "404 Not Found",
@@ -97,11 +88,14 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 	path := req.URL.Path
 
 	contentType, contentError := getContentType(path)
+
+	//REVIEW what does this actually tell us?
 	if contentError != nil {
 		badRequestResponse.Write(conn)
 		return
 	}
 
+	//REVIEW, should this be 500?
 	content, readError := io.ReadAll(req.Body)
 	if readError != nil {
 		badRequestResponse.Write(conn)
@@ -127,7 +121,7 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 		response.Write(conn)
 	}
 
-    response := http.Response{
+	response := http.Response{
 		Status:     "200 OK",
 		StatusCode: http.StatusOK,
 		Proto:      "HTTP/1.1",
@@ -152,45 +146,46 @@ func getContentType(path string) (string, error) {
 	case "/css":
 		return "text/css", nil
 	default:
-		return "", errors.New("TEST")
+		return "", errors.New("unsupported content type")
 	}
 }
 
 func main() {
 
-	requestChannel = make(chan int, maxConcurrentRequests)
+	maxConcurrentRequests := 10
+	requestChannel := make(chan struct{}, maxConcurrentRequests)
 
 	if len(os.Args) != 2 {
-		//TODO better message
-		fmt.Printf("No port specified, please rerun the server with <port> argument")
+		fmt.Printf("No port specified, please rerun the server with and additional <port> argument")
 		return
 	}
 
 	port := os.Args[1]
 
 	listener, err := net.Listen("tcp", ":"+port)
-
 	if err != nil {
 		fmt.Println("Error starting server on port:", port, "\n", "Error:", err)
 	}
 
-	//Cleanup, close connection if main were to return
+	fmt.Println("Server started on port:", port)
+
 	defer listener.Close()
 
-
 	for {
+		//Accept an incoming connection.
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection:", err)
 		}
-		
-		requestChannel <- 1
-		go func (conn net.Conn)  {
+
+		requestChannel <- struct{}{}
+		go func(conn net.Conn) {
 			fmt.Println(len(requestChannel))
-			worker(conn)
-			<- requestChannel
+			handleRequest(conn)
+			conn.Close()
+			<-requestChannel
 		}(conn)
-		
+
 	}
 
 }
