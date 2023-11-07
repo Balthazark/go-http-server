@@ -104,7 +104,7 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 		return
 	}
 
-	if contentType != req.Header["Content-Type"][0] || !strings.Contains(http.DetectContentType(content[:]), contentType) {
+	if contentType != req.Header["Content-Type"][0] {
 		badRequestResponse.Write(conn)
 		return
 	}
