@@ -4,11 +4,20 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 )
+
+var badRequestResponse = http.Response{
+	Status:     "400 Bad Request",
+	StatusCode: http.StatusBadRequest,
+	Proto:      "HTTP/1.1",
+	ProtoMajor: 1,
+	ProtoMinor: 1,
+}
 
 func worker(conn net.Conn) {
 	handleRequest(conn)
@@ -20,24 +29,26 @@ func handleRequest(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	req, err := http.ReadRequest(reader)
 
-    //Send error if http request is badly formatted
+	//Send error if http request is badly formatted
 	if err != nil {
-		response := http.Response{
-			Status:     "400 Bad Request",
-			StatusCode: http.StatusBadRequest,
-			Proto:      "HTTP/1.1",
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-		}
-		response.Write(conn)
-        return
+		badRequestResponse.Write(conn)
+		return
 	}
 
 	switch req.Method {
 	case http.MethodGet:
 		handleServeFile(conn, req.URL.Path)
 	case http.MethodPost:
+		handleWriteFile(conn, req)
 	default:
+		response := http.Response{
+			Status:     "501 Not Implemented",
+			StatusCode: http.StatusNotImplemented,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+		}
+		response.Write(conn)
 	}
 }
 
@@ -45,14 +56,8 @@ func handleServeFile(conn net.Conn, path string) {
 	contentType, err := getContentType(path)
 
 	if err != nil {
-		response := http.Response{
-			Status:     "400 Bad Request",
-			StatusCode: http.StatusBadRequest,
-			Proto:      "HTTP/1.1",
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-		}
-		response.Write(conn)
+		badRequestResponse.Write(conn)
+		return
 	}
 
 	file, err := os.Open("./content" + "/file" + strings.Replace(path, "/", ".", 1))
@@ -68,6 +73,7 @@ func handleServeFile(conn net.Conn, path string) {
 			ProtoMinor: 1,
 		}
 		response.Write(conn)
+		return
 	}
 
 	response := http.Response{
@@ -79,11 +85,52 @@ func handleServeFile(conn net.Conn, path string) {
 		Header:     http.Header{"Content-Type": []string{contentType}},
 		Body:       file,
 	}
-
-	// Write the response status and headers to the connection
 	response.Write(conn)
-	// Close the file after sending it as the response body
 	file.Close()
+}
+
+func handleWriteFile(conn net.Conn, req *http.Request) {
+	path := req.URL.Path
+
+	contentType, contentError := getContentType(path)
+	if contentError != nil {
+		badRequestResponse.Write(conn)
+		return
+	}
+
+	content, readError := io.ReadAll(req.Body)
+	if readError != nil {
+		badRequestResponse.Write(conn)
+		return
+	}
+
+	if contentType != req.Header["Content-Type"][0] || !strings.Contains(http.DetectContentType(content[:]), contentType) {
+		badRequestResponse.Write(conn)
+		return
+	}
+
+	fileName := "./content/file" + strings.Replace(path, "/", ".", 1)
+
+	writeError := os.WriteFile(fileName, content, os.ModePerm)
+	if writeError != nil {
+		response := http.Response{
+			Status:     "500 Internal Server Error",
+			StatusCode: http.StatusInternalServerError,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+		}
+		response.Write(conn)
+	}
+
+    response := http.Response{
+		Status:     "200 OK",
+		StatusCode: http.StatusOK,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+	}
+	response.Write(conn)
 }
 
 func getContentType(path string) (string, error) {
