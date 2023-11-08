@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
+	"path"
 )
 
 var badRequestResponse = http.Response{
@@ -46,19 +46,18 @@ func handleRequest(conn net.Conn) {
 	}
 }
 
-func handleServeFile(conn net.Conn, path string) {
-	contentType, err := getContentType(path)
+func handleServeFile(conn net.Conn, fileName string) {
+	
+	fileExtension := path.Ext(fileName)
+	contentType, err := getContentType(fileExtension)
 
 	if err != nil {
 		badRequestResponse.Write(conn)
 		return
 	}
 
-	file, err := os.Open("./content" + "/file" + strings.Replace(path, "/", ".", 1))
+	file, err := os.Open("./content" +  fileName)
 
-	fmt.Println("./content" + "/file" + strings.Replace(path, "/", ".", 1))
-
-	//REVIEW should we support getting different files? is not this redundant otherwise?
 	if err != nil {
 		response := http.Response{
 			Status:     "404 Not Found",
@@ -85,17 +84,16 @@ func handleServeFile(conn net.Conn, path string) {
 }
 
 func handleWriteFile(conn net.Conn, req *http.Request) {
-	path := req.URL.Path
+	fileName := req.URL.Path
+	fileExtension := path.Ext(fileName)
 
-	contentType, contentError := getContentType(path)
+	contentType, contentError := getContentType(fileExtension)
 
-	//REVIEW what does this actually tell us?
 	if contentError != nil {
 		badRequestResponse.Write(conn)
 		return
 	}
 
-	//REVIEW, should this be 500?
 	content, readError := io.ReadAll(req.Body)
 	if readError != nil {
 		badRequestResponse.Write(conn)
@@ -107,9 +105,9 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 		return
 	}
 
-	fileName := "./content/file" + strings.Replace(path, "/", ".", 1)
+	filePath := "./content" + fileName 
 
-	writeError := os.WriteFile(fileName, content, os.ModePerm)
+	writeError := os.WriteFile(filePath, content, os.ModePerm)
 	if writeError != nil {
 		response := http.Response{
 			Status:     "500 Internal Server Error",
@@ -132,18 +130,19 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 }
 
 func getContentType(path string) (string, error) {
+	fmt.Println(path)
 	switch path {
-	case "/html":
+	case ".html":
 		return "text/html", nil
-	case "/txt":
+	case ".txt":
 		return "text/plain", nil
-	case "/gif":
+	case ".gif":
 		return "image/gif", nil
-	case "/jpeg":
+	case ".jpeg":
 		return "image/jpeg", nil
-	case "/jpg":
+	case ".jpg":
 		return "image/jpeg", nil
-	case "/css":
+	case ".css":
 		return "text/css", nil
 	default:
 		return "", errors.New("unsupported content type")
@@ -172,7 +171,6 @@ func main() {
 	defer listener.Close()
 
 	for {
-		//Accept an incoming connection.
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection:", err)
