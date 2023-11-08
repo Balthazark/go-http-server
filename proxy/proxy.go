@@ -39,9 +39,7 @@ func handleRequest(conn net.Conn) {
 		return
 	}
 
-	targetURL :="localhost:8080"
-
-	fmt.Println(targetURL)
+	targetURL := req.URL.Host
 
 	targetConn, err := net.Dial("tcp", targetURL)
 	if err != nil {
