@@ -22,8 +22,8 @@ var badRequestResponse = http.Response{
 func handleRequest(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	req, err := http.ReadRequest(reader)
-
 	if err != nil {
+		fmt.Println("1",err)
 		badRequestResponse.Write(conn)
 		return
 	}
@@ -130,7 +130,6 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 }
 
 func getContentType(path string) (string, error) {
-	fmt.Println(path)
 	switch path {
 	case ".html":
 		return "text/html", nil
@@ -174,6 +173,7 @@ func main() {
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection:", err)
+			continue
 		}
 
 		requestChannel <- struct{}{}
