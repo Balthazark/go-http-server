@@ -32,7 +32,7 @@ To run binaries
 
 ```bash
  #server
- chmod +x sever
+ chmod +x server
  ./server <port> 
  ```
 
