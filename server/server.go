@@ -120,8 +120,8 @@ func handleWriteFile(conn net.Conn, req *http.Request) {
 	}
 
 	response := http.Response{
-		Status:     "200 OK",
-		StatusCode: http.StatusOK,
+		Status:     "201 Created",
+		StatusCode: http.StatusCreated,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
